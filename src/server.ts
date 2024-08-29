@@ -1,19 +1,16 @@
-// TODO: move to .env
+import express from "express";
+import { getRealUsersBuyingTokenFromPair } from "@/modules/realActiveWalletsInTime.ts";
+const server = express();
+server.use(express.json());
 
+server.post("/wallets2", async (req, res) => {
+  const { pair, start, end } = req.body;
+  if (!pair || !start || !end) {
+    res.status(400).send({ error: "Invalid Data" });
+  }
 
-const API_KEY = "1EX46BK7YXTZSGVVH8RFY9V2R931GYJB49";
-const API_URL = "https://api.etherscan.io/api?";
+  const realWallets = await getRealUsersBuyingTokenFromPair(pair, start, end);
+  res.status(200).send(realWallets);
+});
 
-interface EtherscanResponse<T> {
-    status: string;
-    message: string;
-    result: T;
-}
-
-async function fetchEtherScanApi<T>(parameters: string): Promise<EtherscanResponse<T>> {
-    const response = await fetch(API_URL + `apikey=${API_KEY}&` + parameters);
-    if (!response.ok) {
-        throw new Error(response.statusText);
-    }
-    return await response.json();
-}
+server.listen(3000);
