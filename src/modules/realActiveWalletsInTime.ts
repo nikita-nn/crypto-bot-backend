@@ -3,14 +3,16 @@ import {
   EtherScanResponse,
   fetchEtherScanApi,
 } from "@/modules/fetchEtherScanAPI.ts";
-
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function isContractAddress(address: string): Promise<boolean> {
   const result = await fetchEtherScanApi<string>(
     `module=proxy&action=eth_getCode&address=${address}`,
   );
+
   if (result.status == "0") {
     console.log(result);
   }
+
   return result.result !== "0x" && result.result !== "0x0";
 }
 
@@ -21,21 +23,48 @@ async function getRealBuyers(result: EtherScanResponse<LogEvent[]>) {
       log.topics[0] ==
       "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
     ) {
-      /*const isContract = await isContractAddress(
-        "0x" + log.topics[2].slice(26),
-      );
-      if (!isContract) {
-        realUserAddresses.add({
-          wallet: "0x" + log.topics[2].slice(26),
-          hash: log.transactionHash,
-        });
-      }
-      */
       realUserAddresses.add({
         wallet: "0x" + log.topics[2].slice(26),
       });
     }
   }
+  return Array.from(realUserAddresses);
+}
+
+async function getRealBuyersCheckContract(
+  result: EtherScanResponse<LogEvent[]>,
+) {
+  const realUserAddresses = new Set<{ wallet: string }>();
+  const addressesToCheck: string[] = [];
+
+  for (const log of result.result) {
+    if (
+      log.topics[0] ==
+      "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+    ) {
+      const address = "0x" + log.topics[2].slice(26);
+      addressesToCheck.push(address);
+    }
+  }
+
+  const batchSize = 5;
+  for (let i = 0; i < addressesToCheck.length; i += batchSize) {
+    const batch = addressesToCheck.slice(i, i + batchSize);
+
+    await Promise.all(
+      batch.map(async (address) => {
+        const isContract = await isContractAddress(address);
+        if (!isContract) {
+          realUserAddresses.add({ wallet: address });
+        }
+      }),
+    );
+
+    if (i + batchSize < addressesToCheck.length) {
+      await delay(1100);
+    }
+  }
+
   return Array.from(realUserAddresses);
 }
 
@@ -110,5 +139,5 @@ export async function getRealUsersBuyingTokenFromPair(
     `module=logs&action=getLogs&fromBlock=${startBlock}&toBlock=${endBlock}&address=${pairAddress}`,
   );
 
-  return await getRealBuyers(result);
+  return await getRealBuyersCheckContract(result);
 }
