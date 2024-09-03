@@ -1,71 +1,37 @@
-import { LogEvent } from "@/data/types.ts";
-import {
-  EtherScanResponse,
-  fetchEtherScanApi,
-} from "@/modules/fetchEtherScanAPI.ts";
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-export async function isContractAddress(address: string): Promise<boolean> {
-  const result = await fetchEtherScanApi<string>(
-    `module=proxy&action=eth_getCode&address=${address}`,
-  );
+import {Alchemy, Log, Network} from "alchemy-sdk";
+import 'dotenv/config'
+import * as process from "node:process";
 
-  if (result.status == "0") {
-    console.log(result);
-  }
+const ALCHEMY_SETTINGS = {
+  apiKey: process.env.ALCHEMY_API_KEY,
+  network: Network.ETH_MAINNET,
+};
 
-  return result.result !== "0x" && result.result !== "0x0";
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function getRealBuyers(result: EtherScanResponse<LogEvent[]>) {
-  const realUserAddresses = new Set<{ wallet: string }>();
-  for (const log of result.result) {
-    if (
-      log.topics[0] ==
-      "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
-    ) {
-      realUserAddresses.add({
-        wallet: "0x" + log.topics[2].slice(26),
-      });
-    }
+const alchemy = new Alchemy(ALCHEMY_SETTINGS);
+
+async function isContract(address: string) {
+  try {
+    const code = await alchemy.core.getCode(address);
+    return code !== "0x";
+  } catch (error) {
+    console.error(`Error checking if address is a contract: ${address}`, error);
+    return false;
   }
-  return Array.from(realUserAddresses);
 }
 
-async function getRealBuyersCheckContract(
-  result: EtherScanResponse<LogEvent[]>,
-) {
-  const realUserAddresses = new Set<{ wallet: string }>();
-  const addressesToCheck: string[] = [];
+/**
+ 2.1.4 Wallets: узнать доходность кошелька
+ Функционал для оценки доходности указанного кошелька за последние 3 месяца.
+ Пользователь вводит адрес кошелька, а бот анализирует его активность и рассчитывает доходность.
+ */
 
-  for (const log of result.result) {
-    if (
-      log.topics[0] ==
-      "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
-    ) {
-      const address = "0x" + log.topics[2].slice(26);
-      addressesToCheck.push(address);
-    }
-  }
+export async function getWalletsX2Profit(_: string) {
 
-  const batchSize = 5;
-  for (let i = 0; i < addressesToCheck.length; i += batchSize) {
-    const batch = addressesToCheck.slice(i, i + batchSize);
-
-    await Promise.all(
-      batch.map(async (address) => {
-        const isContract = await isContractAddress(address);
-        if (!isContract) {
-          realUserAddresses.add({ wallet: address });
-        }
-      }),
-    );
-
-    if (i + batchSize < addressesToCheck.length) {
-      await delay(1100);
-    }
-  }
-
-  return Array.from(realUserAddresses);
 }
 
 /**
@@ -76,50 +42,86 @@ async function getRealBuyersCheckContract(
  пересекающихся во всех контрактах.
  */
 
-export async function getUniqueBuyersInContracts(pairAddresseses: string[]) {
-  if (pairAddresseses.length >= 2) {
-    const logs1 = await fetchEtherScanApi<LogEvent[]>(
-      `module=logs&action=getLogs&fromBlock=0&toBlock=latest&address=${pairAddresseses[0]}`,
-    );
-    const logs2 = await fetchEtherScanApi<LogEvent[]>(
-      `module=logs&action=getLogs&fromBlock=0&toBlock=latest&address=${pairAddresseses[1]}`,
-    );
+async function getUniqueWalletsWithoutCheck(logs: Log[]) {
+  const wallets = new Set<string>();
 
-    const result1 = await getRealBuyers(logs1);
-    const result2 = await getRealBuyers(logs2);
+  logs.forEach((log) => {
+    const toWallet = `0x${log.topics[2].slice(26)}`;
+    wallets.add(toWallet);
+  });
 
-    let result3: { wallet: string }[] | null = null;
-    if (pairAddresseses.length === 3) {
-      const logs3 = await fetchEtherScanApi<LogEvent[]>(
-        `module=logs&action=getLogs&fromBlock=0&toBlock=latest&address=${pairAddresseses[2]}`,
-      );
-      result3 = await getRealBuyers(logs3);
+  return Array.from(wallets);
+}
+
+async function getUniqueWalletsWithCheck(logs: Log[]) {
+  const wallets = new Set<string>();
+
+  const checks = logs.map(async (log) => {
+    const toWallet = `0x${log.topics[2].slice(26)}`;
+    const isContractAccount = await isContract(toWallet);
+
+    if (!isContractAccount) {
+      wallets.add(toWallet);
     }
+    await delay(100);
+  });
 
-    const set1 = new Set(result1.map((buyer) => buyer.wallet));
-    const set2 = new Set(result2.map((buyer) => buyer.wallet));
+  await Promise.all(checks);
+  return Array.from(wallets);
+}
 
-    let intersection = new Set([...set1].filter((wallet) => set2.has(wallet)));
-
-    if (result3) {
-      const set3 = new Set(result3.map((buyer) => buyer.wallet));
-      intersection = new Set(
-        [...intersection].filter((wallet) => set3.has(wallet)),
-      );
-    }
-
-    const uniqueBuyers = [];
-    for (let wallet of intersection) {
-      const isContract = await isContractAddress(wallet);
-      if (!isContract) {
-        uniqueBuyers.push({ wallet });
-      }
-    }
-
-    return uniqueBuyers;
-  } else {
-    throw new Error("You must provide at least 2 addresses.");
+export async function getUniqueBuyersInContracts(pairAddresses: string[]) {
+  if (pairAddresses.length < 2) {
+    throw new Error("You must provide 2/3 pairs");
   }
+  const logs1 = await alchemy.core.getLogs({
+    address: pairAddresses[0],
+    fromBlock: 0x0,
+    toBlock: "0x10ef5af",
+    topics: [
+      "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+    ],
+  });
+
+  const uniqWallets1 = await getUniqueWalletsWithoutCheck(logs1);
+
+  const logs2 = await alchemy.core.getLogs({
+    address: pairAddresses[1],
+    fromBlock: 0x0,
+    toBlock: "0x10ef5af",
+    topics: [
+      "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+    ],
+  });
+
+  const uniqWallets2 = await getUniqueWalletsWithoutCheck(logs2);
+
+  const logs3 = await alchemy.core.getLogs({
+    address: pairAddresses[2],
+    fromBlock: 0x0,
+    toBlock: "0x10ef5af",
+    topics: [
+      "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+    ],
+  });
+
+  const uniqWallets3 = await getUniqueWalletsWithoutCheck(logs3);
+
+  const set1 = new Set(uniqWallets1);
+  const set2 = new Set(uniqWallets2);
+  const set3 = new Set(uniqWallets3);
+
+  const intersection = [...set1].filter(
+    (wallet) => set2.has(wallet) && set3.has(wallet),
+  );
+  const results = await Promise.all(
+    intersection.map(async (wallet) => {
+      const isContractWallet = await isContract(wallet);
+      return !isContractWallet ? wallet : null;
+    }),
+  );
+
+  return results.filter((wallet) => wallet !== null);
 }
 
 /**
@@ -135,9 +137,16 @@ export async function getRealUsersBuyingTokenFromPair(
   startBlock: number,
   endBlock: number,
 ) {
-  const result = await fetchEtherScanApi<LogEvent[]>(
-    `module=logs&action=getLogs&fromBlock=${startBlock}&toBlock=${endBlock}&address=${pairAddress}`,
-  );
+  const logs = await alchemy.core.getLogs({
+    address: pairAddress,
+    fromBlock: `0x${startBlock.toString(16)}`,
+    toBlock: `0x${endBlock.toString(16)}`,
+    topics: [
+      "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+    ],
+  });
 
-  return await getRealBuyersCheckContract(result);
+  const wallets = await getUniqueWalletsWithCheck(logs);
+
+  return Array.from(wallets);
 }
