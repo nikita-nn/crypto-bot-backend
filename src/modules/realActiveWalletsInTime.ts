@@ -1,18 +1,11 @@
-import {Alchemy, Log, Network} from "alchemy-sdk";
-import 'dotenv/config'
-import * as process from "node:process";
+import { Alchemy, Log } from "alchemy-sdk";
+import { ALCHEMY_SETTINGS } from "../data/settings.ts";
 
-const ALCHEMY_SETTINGS = {
-  apiKey: process.env.ALCHEMY_API_KEY,
-  network: Network.ETH_MAINNET,
-};
-
+const alchemy = new Alchemy(ALCHEMY_SETTINGS);
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-const alchemy = new Alchemy(ALCHEMY_SETTINGS);
 
 async function isContract(address: string) {
   try {
@@ -30,9 +23,7 @@ async function isContract(address: string) {
  Пользователь вводит адрес кошелька, а бот анализирует его активность и рассчитывает доходность.
  */
 
-export async function getWalletsX2Profit(_: string) {
-
-}
+export async function getWalletsX2Profit(_: string) {}
 
 /**
  2.1.3 Wallets: уникальные покупатели контрактов

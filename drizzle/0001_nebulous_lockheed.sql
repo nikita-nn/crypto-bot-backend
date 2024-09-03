@@ -1,0 +1,1 @@
+ALTER TABLE "tracked_addresses" ADD CONSTRAINT "tracked_addresses_walletAddress_unique" UNIQUE("walletAddress");
