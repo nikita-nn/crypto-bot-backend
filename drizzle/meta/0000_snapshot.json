@@ -1,5 +1,5 @@
 {
-  "id": "5032944f-d884-4727-b3ed-3591cd951005",
+  "id": "358a0066-0a9c-4d60-9bda-baedcd84dae6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -25,6 +25,80 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "categoryEnum",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link": {
+          "name": "link",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zerionLink1": {
+          "name": "zerionLink1",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previousWallet1": {
+          "name": "previousWallet1",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zerionLink2": {
+          "name": "zerionLink2",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previousWallet2": {
+          "name": "previousWallet2",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dexScreenerLink1": {
+          "name": "dexScreenerLink1",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "xQuantity1": {
+          "name": "xQuantity1",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dexScreenerLink2": {
+          "name": "dexScreenerLink2",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "xQuantity2": {
+          "name": "xQuantity2",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "riskEntry": {
+          "name": "riskEntry",
+          "type": "riskEnum",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -75,10 +149,27 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {
+        "users_telegramId_unique": {
+          "name": "users_telegramId_unique",
+          "nullsNotDistinct": false,
+          "columns": ["telegramId"]
+        }
+      }
     }
   },
-  "enums": {},
+  "enums": {
+    "public.categoryEnum": {
+      "name": "categoryEnum",
+      "schema": "public",
+      "values": ["whales", "influencers", "developers"]
+    },
+    "public.riskEnum": {
+      "name": "riskEnum",
+      "schema": "public",
+      "values": ["high", "medium", "low"]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "_meta": {
